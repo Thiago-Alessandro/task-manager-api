@@ -150,10 +150,7 @@ services:
         condition: service_healthy
       package-registry:
         condition: service_healthy
-    #      fleet-server:
-    #        condition: service_healthy
     image: registry-docker.weg.net/kibana:${STACK_VERSION}
-    #    image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
     labels:
       co.elastic.logs/module: kibana
     volumes:
@@ -184,7 +181,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl -s -I https://localhost:5601 | grep -q 'HTTP/1.1 302 Found'",
+          "curl -I -s --cacert config/certs/ca/ca.crt https://localhost:5601 | grep -q 'HTTP/1.1 302 Found'",
         ]
       interval: 10s
       timeout: 10s
@@ -192,7 +189,6 @@ services:
 
   otel-collector:
     image: registry-docker.weg.net/otel/opentelemetry-collector-contrib:latest
-    #    image: registry-docker.weg.net/otel/opentelemetry-collector:latest
     container_name: otel-collector
     volumes:
       - ./otel-collector-config.yml:/otel-local-config.yaml
@@ -279,8 +275,8 @@ services:
   fleet-server:
     container_name: fleet-server
     depends_on:
-      #      kibana:
-      #        condition: service_healthy
+      kibana:
+        condition: service_healthy
       es01:
         condition: service_healthy
     image: registry-docker.weg.net/beats/elastic-agent:${STACK_VERSION}
@@ -333,3 +329,8 @@ services:
     container_name: package-registry
     ports:
       - "8080:8080"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -I http://localhost:8080 | grep '200'" ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
