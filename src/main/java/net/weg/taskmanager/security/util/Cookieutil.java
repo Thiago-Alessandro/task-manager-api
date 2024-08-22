@@ -2,7 +2,6 @@ package net.weg.taskmanager.security.util;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
-import jdk.swing.interop.SwingInterOpUtils;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.util.WebUtils;
 

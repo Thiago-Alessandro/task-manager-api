@@ -1,0 +1,149 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "${OTLP_GRPC_ENDPOINT}"
+      http:
+        endpoint: "${OTLP_HTTP_ENDPOINT}"
+
+#  prometheus:
+#    config:
+#      scrape_configs:
+#        - job_name: 'spring-boot'
+#          static_configs:
+#            - targets: ['localhost:9091']
+
+
+#  prometheus_simple:
+#    collection_interval: 10s
+#    endpoint: '127.0.0.1:9091'
+#    metrics_path: '/actuator/prometheus'
+##    use_service_account: false
+#    tls:
+##      ca_file: '/path/to/ca'
+##      cert_file: '/path/to/cert'
+##      key_file: '/path/to/key'
+#      insecure_skip_verify: true
+
+#  filelog:
+#    include:
+#      - ./logs.log
+##    operators:
+##      - type: regex_parser
+##        regex: '^(?P<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (?P<sev>[A-Z]*) (?P<msg>.*)$'
+##        timestamp:
+##          parse_from: attributes.time
+##          layout: '%Y-%m-%d %H:%M:%S'
+##        severity:
+##          parse_from: attributes.sev
+#    multiline:
+#      line_start_pattern: ^Exception
+
+
+
+exporters:
+  logging:
+    #    loglevel: debug
+    verbosity: detailed
+
+
+  elasticsearch:
+    endpoints: [ "https://es01:9200" ]
+    traces_index: "traces-app"
+    logs_index: "logs-app"
+    user: elastic
+    password: changeme
+    tls:
+      insecure_skip_verify: true
+
+  otlp:
+    endpoint: "http://fleet-server:8200"
+    timeout: 10s
+    headers:
+      Authorization: "Bearer supersecrettoken"
+    tls:
+      insecure: true
+#      insecure_skip_verify: true
+
+#  prometheus:
+#    endpoint: "0.0.0.0:9091"
+
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 256
+    send_batch_max_size: 2048
+
+  cumulativetodelta:
+    include:
+      metrics:
+        - "http.server.requests"
+      match_type: strict
+
+  transform:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["usecase"], Split(attributes["usecase"], ","))
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(attributes["meter.count"], count) where count != nil
+          - set(attributes["meter.sum"], sum) where sum != nil
+          - set(attributes["meter.average.latency"], sum/count) where sum != nil and count != nil and count != 0
+          - set(attributes["meter.average.latency"], 0) where sum != nil and count == 0
+#          - set(attributes["app.name"], spring.application.name)
+#          - set(count, 0)
+#          - set(sum, 0.0)
+#          - extract_sum_metric(false)
+#          - extract_count_metric(true)
+
+
+#  metricstransform:
+#    transforms:
+#      - include: http.server.requests
+#        match_type: strict
+#        action: insert
+#        new_name: test.sum
+#        operations:
+#          - action: aggregate_labels
+#            label_set: []
+#            new_value: sum
+#
+#      - include: http.server.requests
+#        match_type: strict
+#        action: insert
+#        new_name: test.count
+#        operations:
+#          - action: aggregate_labels
+#            label_set: []
+#            new_value: count
+
+#  metricstransform:
+#    transforms:
+#      - include: http.server.requests
+#        match_type: strict
+#        action: update
+#        operations:
+#          - action: aggregate_labels
+#            label_set:
+#              - duration_bucket
+#            aggregation_type: sum
+
+
+service:
+  pipelines:
+#    logs:
+#      receivers: [ otlp ]
+#      processors: [ batch, transform ]
+#      exporters: [ logging, elasticsearch]
+#    traces:
+#      receivers: [otlp]
+#      processors: [batch]
+#      exporters: [ logging, elasticsearch]
+    metrics:
+      receivers: [otlp]
+      processors: [ cumulativetodelta, transform, batch]
+      exporters: [ logging, otlp ]
