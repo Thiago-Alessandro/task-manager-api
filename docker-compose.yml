@@ -177,7 +177,9 @@ services:
         condition: service_healthy
     image: registry-docker.weg.net/beats/elastic-agent:${STACK_VERSION}
     volumes:
-      - ./setup_fleet.sh:/usr/local/bin/setup_fleet.sh
+      - ./artifacts/kibana/config/setup_fleet.sh:/usr/local/bin/setup_fleet.sh
+      - ./artifacts/kibana/config/kibana_imports.sh:/usr/local/bin/kibana_imports.sh
+      - ./artifacts/kibana/saved_objects:/usr/local/bin/saved_objects
       - certs:/certs
       - fleetserverdata:/usr/share/elastic-agent
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
@@ -185,23 +187,12 @@ services:
       - "/sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro"
       - "/proc:/hostfs/proc:ro"
       - "/:/hostfs:ro"
-    entrypoint: ["/bin/sh", "-c", "/usr/local/bin/setup_fleet.sh && /usr/local/bin/docker-entrypoint"]
+    entrypoint: ["/bin/sh", "-c", "/usr/local/bin/setup_fleet.sh && /usr/local/bin/kibana_imports.sh && /usr/local/bin/docker-entrypoint"]
     ports:
       - ${FLEET_PORT}:8220
       - ${APMSERVER_PORT}:8200
     user: root
     env_file: ./fleet-server.env
-
-#  fleet-setup:
-#    image: alpine:latest
-#    container_name: fleet-setup
-#    volumes:
-#      - ./setup_fleet.sh:/usr/local/bin/setup_fleet.sh
-#    depends_on:
-#      kibana:
-#        condition: service_healthy
-#    user: root
-#    entrypoint: ["/bin/sh", "-c", "apk add --no-cache curl openssl && /usr/local/bin/setup_fleet.sh"]
 
   package-registry:
     image: registry-docker.weg.net/package-registry/distribution:lite-${STACK_VERSION}

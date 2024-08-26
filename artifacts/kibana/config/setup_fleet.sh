@@ -14,3 +14,5 @@ curl -X PUT "https://elastic:changeme@kibana:5601/api/fleet/outputs/fleet-defaul
     "certificate_authorities": ["'"$CERTIFICATE"'"]
   }
 }' --cacert /certs/ca/ca.crt
+
+echo "Fleet output setup concluded successfully!"
