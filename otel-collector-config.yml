@@ -79,6 +79,13 @@ processors:
     include:
       metrics:
         - "http.server.requests"
+        - "logback.events"
+        - "hikaricp.connections.usage"
+        - "hikaricp.connections.acquire"
+        - "hikaricp.connections.active"
+        - "hikaricp.connections.creation"
+        - "hikaricp.connections.timeout"
+        - "spring.data.repository.invocations"
       match_type: strict
 
   transform:

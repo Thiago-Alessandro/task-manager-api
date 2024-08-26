@@ -56,9 +56,9 @@ services:
 
   es01:
     container_name: es01
-    depends_on:
-      setup:
-        condition: service_healthy
+#    depends_on:
+#      setup:
+#        condition: service_healthy
     image: registry-docker.weg.net/elasticsearch:${STACK_VERSION}
     labels:
       co.elastic.logs/module: elasticsearch
@@ -123,8 +123,17 @@ services:
     volumes:
       - ./otel-collector-config.yml:/otel-local-config.yaml
     env_file: ./otel-collector.env
-    mem_limit: ${ES_MEM_LIMIT}
+    mem_limit: ${DF_MEM_LIMIT}
     command: ["--config", "/otel-local-config.yaml"]
+
+  otel-collector2:
+    image: registry-docker.weg.net/otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector2
+    volumes:
+      - ./otel-collector-config.yml:/otel-local-config.yaml
+    env_file: ./otel-collector.env
+    mem_limit: ${DF_MEM_LIMIT}
+    command: [ "--config", "/otel-local-config.yaml" ]
 
 
   evolve-api:
@@ -162,6 +171,7 @@ services:
     depends_on:
       - evolve-api
       - otel-collector
+      - otel-collector2
     expose:
       - 8087
       - 4318
