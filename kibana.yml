@@ -1,45 +1,75 @@
-xpack.fleet.registryUrl: "http://package-registry:8080"
+# Elastic APM Configuration
 elastic:
   apm:
     active: true
     serverUrl: "http://fleet-server:8200"
     secretToken: ${ELASTIC_APM_SECRET_TOKEN}
-server.host: "0.0.0.0"
-telemetry.enabled: "true"
-xpack.fleet.packages:
-  - name: fleet_server
-    version: latest
-  - name: system
-    version: latest
-  - name: elastic_agent
-    version: latest
-  - name: apm
-    version: latest
-xpack.fleet.agentPolicies:
-  - name: Fleet-Server-Policy
-    id: fleet-server-policy
-    namespace: default
-    monitoring_enabled:
-      - logs
-      - metrics
-    package_policies:
-      - name: fleet_server-1
-        package:
-          name: fleet_server
-      - name: system-1
-        package:
-          name: system
-      - name: elastic_agent-1
-        package:
-          name: elastic_agent
-      - name: apm-1
-        package:
-          name: apm
-        inputs:
-          - type: apm
-            enabled: true
-            vars:
-              - name: host
-                value: 0.0.0.0:8200
-              - name: secret_token
-                value: ${ELASTIC_APM_SECRET_TOKEN}
+
+# Elasticsearch Configuration
+elasticsearch:
+  hosts: ["https://es01:9200"]
+  username: "kibana_system"
+  password: ${KIBANA_PASSWORD}
+  ssl:
+    certificateAuthorities: "config/certs/ca/ca.crt"
+
+# Server Configuration
+server:
+  ssl:
+    enabled: true
+    certificate: config/certs/kibana/kibana.crt
+    key: config/certs/kibana/kibana.key
+    certificateAuthorities: config/certs/ca/ca.crt
+  name: kibana
+  host: "0.0.0.0"
+
+# X-Pack Configuration
+xpack:
+  security:
+    encryptionKey: ${ENCRYPTION_KEY}
+  encryptedSavedObjects:
+    encryptionKey: ${ENCRYPTION_KEY}
+  reporting:
+    encryptionKey: ${ENCRYPTION_KEY}
+    kibanaServer:
+      hostname: "localhost"
+  fleet:
+    isAirGapped: true
+    registryUrl: "http://package-registry:8080"
+    packages:
+      - name: fleet_server
+        version: latest
+      - name: system
+        version: latest
+      - name: elastic_agent
+        version: latest
+      - name: apm
+        version: latest
+    agentPolicies:
+      - name: Fleet-Server-Policy
+        id: fleet-server-policy
+        namespace: default
+        monitoring_enabled:
+          - logs
+          - metrics
+        package_policies:
+          - name: fleet_server-1
+            package:
+              name: fleet_server
+          - name: system-1
+            package:
+              name: system
+          - name: elastic_agent-1
+            package:
+              name: elastic_agent
+          - name: apm-1
+            package:
+              name: apm
+            inputs:
+              - type: apm
+                enabled: true
+                vars:
+                  - name: host
+                    value: 0.0.0.0:8200
+                  - name: secret_token
+                    value: ${ELASTIC_APM_SECRET_TOKEN}

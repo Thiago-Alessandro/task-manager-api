@@ -1,3 +1,6 @@
+#caso o elastic reclame que o max_map_count da vm esteja muito baixo
+#docker run --rm --privileged=true alpine:latest sysctl -w vm.max_map_count=262144
+
 #Referencia= https://www.elastic.co/pt/blog/getting-started-with-the-elastic-stack-and-docker-compose-part-2
 ##Copiar certificado do container do elasticsearch para uma pasta (Temp no caso)##
 #docker cp es01:/usr/share/elasticsearch/config/certs/ca/ca.crt C:\Temp\.
@@ -40,57 +43,11 @@ services:
     image: registry-docker.weg.net/elasticsearch:${STACK_VERSION}
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
+      - ./setup_services.sh:/usr/local/bin/setup_services.sh
     user: "0"
-    command: >
-      bash -c '
-        if [ x${ELASTIC_PASSWORD} == x ]; then
-          echo "Set the ELASTIC_PASSWORD environment variable in the .env file";
-          exit 1;
-        elif [ x${KIBANA_PASSWORD} == x ]; then
-          echo "Set the KIBANA_PASSWORD environment variable in the .env file";
-          exit 1;
-        fi;
-        if [ ! -f config/certs/ca.zip ]; then
-          echo "Creating CA";
-          bin/elasticsearch-certutil ca --silent --pem -out config/certs/ca.zip;
-          unzip config/certs/ca.zip -d config/certs;
-        fi;
-        if [ ! -f config/certs/certs.zip ]; then
-          echo "Creating certs";
-          echo -ne \
-           "instances:\n"\
-          "  - name: es01\n"\
-          "    dns:\n"\
-          "      - es01\n"\
-          "      - localhost\n"\
-          "    ip:\n"\
-          "      - 127.0.0.1\n"\
-          "  - name: kibana\n"\
-          "    dns:\n"\
-          "      - kibana\n"\
-          "      - localhost\n"\
-          "    ip:\n"\
-          "      - 127.0.0.1\n"\
-          "  - name: fleet-server\n"\
-          "    dns:\n"\
-          "      - fleet-server\n"\
-          "      - localhost\n"\
-          "    ip:\n"\
-          "      - 127.0.0.1\n"\
-          > config/certs/instances.yml;
-          bin/elasticsearch-certutil cert --silent --pem -out config/certs/certs.zip --in config/certs/instances.yml --ca-cert config/certs/ca/ca.crt --ca-key config/certs/ca/ca.key;
-          unzip config/certs/certs.zip -d config/certs;
-        fi;
-        echo "Setting file permissions"
-        chown -R root:root config/certs;
-        find . -type d -exec chmod 750 \{\} \;;
-        find . -type f -exec chmod 640 \{\} \;;
-        echo "Waiting for Elasticsearch availability";
-        until curl -s --cacert config/certs/ca/ca.crt https://es01:9200 | grep -q "missing authentication credentials"; do sleep 30; done;
-        echo "Setting kibana_system password";
-        until curl -s -X POST --cacert config/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" -H "Content-Type: application/json" https://es01:9200/_security/user/kibana_system/_password -d "{\"password\":\"${KIBANA_PASSWORD}\"}" | grep -q "^{}"; do sleep 10; done;
-        echo "All done!";
-      '
+    command: ["/usr/local/bin/setup_services.sh"]
+    env_file:
+      - .env
     healthcheck:
       test: ["CMD-SHELL", "[ -f config/certs/es01/es01.crt ]"]
       interval: 1s
@@ -99,9 +56,9 @@ services:
 
   es01:
     container_name: es01
-    #    depends_on:
-    #      setup:
-    #        condition: service_healthy
+    depends_on:
+      setup:
+        condition: service_healthy
     image: registry-docker.weg.net/elasticsearch:${STACK_VERSION}
     labels:
       co.elastic.logs/module: elasticsearch
@@ -110,24 +67,7 @@ services:
       - esdata01:/usr/share/elasticsearch/data
     ports:
       - ${ES_PORT}:9200
-    environment:
-      - node.name=es01
-      - cluster.name=${CLUSTER_NAME}
-      - discovery.type=single-node
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
-      - bootstrap.memory_lock=true
-      - xpack.security.enabled=true
-      - xpack.security.http.ssl.enabled=true
-      - xpack.security.http.ssl.key=certs/es01/es01.key
-      - xpack.security.http.ssl.certificate=certs/es01/es01.crt
-      - xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
-      - xpack.security.transport.ssl.enabled=true
-      - xpack.security.transport.ssl.key=certs/es01/es01.key
-      - xpack.security.transport.ssl.certificate=certs/es01/es01.crt
-      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
-      - xpack.security.transport.ssl.verification_mode=certificate
-      - xpack.license.self_generated.type=${LICENSE}
-      - ES_JAVA_OPTS=-Xms256m -Xmx256m
+    env_file: ./elasticsearch.env
     mem_limit: ${ES_MEM_LIMIT}
     ulimits:
       memlock:
@@ -142,6 +82,7 @@ services:
       interval: 10s
       timeout: 10s
       retries: 120
+
 
   kibana:
     container_name: kibana
@@ -160,22 +101,10 @@ services:
     ports:
       - ${KIBANA_PORT}:5601
     environment:
-      - xpack.fleet.registryUrl=http://package-registry:8080
-      - SERVERNAME=kibana
-      - ELASTICSEARCH_HOSTS=https://es01:9200
-      - ELASTICSEARCH_USERNAME=kibana_system
-      - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD}
-      - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=config/certs/ca/ca.crt
-      - XPACK_SECURITY_ENCRYPTIONKEY=${ENCRYPTION_KEY}
-      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=${ENCRYPTION_KEY}
-      - XPACK_REPORTING_ENCRYPTIONKEY=${ENCRYPTION_KEY}
-      - XPACK_REPORTING_KIBANASERVER_HOSTNAME=localhost
-      - SERVER_SSL_ENABLED=true
-      - SERVER_SSL_CERTIFICATE=config/certs/kibana/kibana.crt
-      - SERVER_SSL_KEY=config/certs/kibana/kibana.key
-      - SERVER_SSL_CERTIFICATEAUTHORITIES=config/certs/ca/ca.crt
-      - ELASTIC_APM_SECRET_TOKEN=${ELASTIC_APM_SECRET_TOKEN}
-      - xpack.fleet.isAirGapped=true
+      - FLEET_ELASTICSEARCH_HOSTS=https://es01:9200
+      - FLEET_ELASTICSEARCH_SSL_CERTIFICATE_AUTHORITIES=/usr/share/fleet/config/certs/ca.crt
+    env_file:
+      - .env
     mem_limit: ${KB_MEM_LIMIT}
     healthcheck:
       test:
@@ -187,29 +116,16 @@ services:
       timeout: 10s
       retries: 120
 
+
   otel-collector:
     image: registry-docker.weg.net/otel/opentelemetry-collector-contrib:latest
     container_name: otel-collector
     volumes:
       - ./otel-collector-config.yml:/otel-local-config.yaml
-      - certs:/etc/otel/ssl  # Volume para os certificados, incluindo o certificado OTel Collector
-    environment:
-      - OTLP_GRPC_ENDPOINT="0.0.0.0:4317"
-      - OTLP_HTTP_ENDPOINT="0.0.0.0:4318"
-      - ELASTICSEARCH_HOST=https://es01:9200
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://fleet-server:8200
-      - OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer supersecrettoken"
-      - OTEL_METRICS_EXPORTER=otlp
-      - OTEL_RESOURCE_ATTRIBUTES=service.name=evolve-api,service.version=1.0,deployment.environment=production
-      - ELASTICSEARCH_USERNAME=elastic
-      - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD}
-      - xpack.security.transport.ssl.certificate_authorities=/etc/otel/ssl/ca.crt
-      - ELASTICSEARCH_CA_PATH=/usr/share/otel/ca.crt
-      - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=/etc/otel/ssl/ca.crt
-      - OTEL_SEMCONV_STABILITY_OPT_IN=http/dup
-      - ES_JAVA_OPTS=-Xms256m -Xmx256m
+    env_file: ./otel-collector.env
     mem_limit: ${ES_MEM_LIMIT}
     command: ["--config", "/otel-local-config.yaml"]
+
 
   evolve-api:
     image: evolve-api:latest
@@ -219,31 +135,11 @@ services:
       dockerfile: Dockerfile
     expose:
       - 8087
-    environment:
-      - SPRING_APPLICATION_NAME=evolve-api
-      - MANAGEMENT_OTLP_METRICS_EXPORT_URL=http://loadbalancer:4318/v1/metrics
-      - MANAGEMENT_ENDPOINT_PROMETHEUS_ENABLED=true
-      - MANAGEMENT_PROMETHEUS_METRICS_EXPORT_ENABLED=true
-      - MANAGEMENT_OTLP_METRICS_EXPORT_STEP=30s
-      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=*
-      - MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED=true
-      - MANAGEMENT_METRICS_DISTRIBUTION_PERCENTILES-HISTOGRAM_HTTP=true
-      - MANAGEMENT_METRICS_DISTRIBUTION_PERCENTILES-HISTOGRAM_SPRING=true
-      - SERVER_PORT=8087
-      - LOGGING_LEVEL_IO_MICROMETER=DEBUG
-      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_BOOT_ACTUATE=DEBUG
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/EVOLVE?createDatabaseIfNotExist=true
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=root
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
-#      - SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE=100MB
-      - otel.instrumentation.logback-appender.experimental.capture-mdc-attributes=*
-      - SPRING_PROFILES_ACTIVE=development
-      - LOGGING_PATTERN_CONSOLE=%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %replace([usecase=%X{usecase}]){'\[usecase=\]',''}  %p%replace([traceId=%X{traceId}]){'\[traceId=\]',''}%replace([spanId=%X{spanId}]){'\[spanId=\]', ''}%replace([username=%X{username}]){'\[username=\]',''} %logger{13}:%M [%t] %m%ex%n
+    env_file: ./evolve-api.env
     depends_on:
-      #      - otel-collector
       - kibana
       - mysql
+
 
   mysql:
     image: registry-docker.weg.net/mysql:latest
@@ -257,6 +153,7 @@ services:
     volumes:
       - mysqldata:/var/lib/mysql  # Monta um volume para persistir os dados do MySQL
 
+
   loadbalancer:
     image: registry-docker.weg.net/nginx:stable
     container_name: loadbalancer
@@ -264,6 +161,7 @@ services:
       - "8087:8087"
     depends_on:
       - evolve-api
+      - otel-collector
     expose:
       - 8087
       - 4318
@@ -277,10 +175,9 @@ services:
     depends_on:
       kibana:
         condition: service_healthy
-      es01:
-        condition: service_healthy
     image: registry-docker.weg.net/beats/elastic-agent:${STACK_VERSION}
     volumes:
+      - ./setup_fleet.sh:/usr/local/bin/setup_fleet.sh
       - certs:/certs
       - fleetserverdata:/usr/share/elastic-agent
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
@@ -288,44 +185,26 @@ services:
       - "/sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro"
       - "/proc:/hostfs/proc:ro"
       - "/:/hostfs:ro"
+    entrypoint: ["/bin/sh", "-c", "/usr/local/bin/setup_fleet.sh && /usr/local/bin/docker-entrypoint"]
     ports:
       - ${FLEET_PORT}:8220
       - ${APMSERVER_PORT}:8200
     user: root
-    environment:
-      - elasticsearch.hosts=https://es01:9200
-      - ELASTICSEARCH_HOST=https://es01:9200
-      - ELASTICSEARCH_HOSTS=https://es01:9200
-      - ELASTICSEARCH_USERNAME=elastic
-      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
-      - SSL_CERTIFICATE_AUTHORITIES=/certs/ca/ca.crt
-      - CERTIFICATE_AUTHORITIES=/certs/ca/ca.crt
-      - FLEET_CA=/certs/ca/ca.crt
-      - FLEET_ENROLL=1
-      - FLEET_INSECURE=true
-      - FLEET_SERVER_ELASTICSEARCH_CA=/certs/ca/ca.crt
-      - FLEET_SERVER_ELASTICSEARCH_HOST=https://es01:9200
-      - fleet-server-es=https://es01:9200
-      - fleet_server_es=https://es01:9200
-      - fleet_server_elasticsearch=https://es01:9200
-      - FLEET_SERVER_ELASTICSEARCH_INSECURE=true
-      - FLEET_SERVER_ENABLE=1
-      - FLEET_SERVER_CERT=/certs/fleet-server/fleet-server.crt
-      - FLEET_SERVER_CERT_KEY=/certs/fleet-server/fleet-server.key
-      - FLEET_SERVER_INSECURE_HTTP=true
-      - FLEET_SERVER_POLICY_ID=fleet-server-policy
-      - FLEET_URL=https://fleet-server:8220
-      - KIBANA_FLEET_CA=/certs/ca/ca.crt
-      - KIBANA_FLEET_SETUP=1
-      - KIBANA_FLEET_USERNAME=elastic
-      - KIBANA_FLEET_PASSWORD=changeme
-      - KIBANA_HOST=https://kibana:5601
-      - xpack.fleet.agents.elasticsearch.hosts=https://es01:9200
+    env_file: ./fleet-server.env
 
+#  fleet-setup:
+#    image: alpine:latest
+#    container_name: fleet-setup
+#    volumes:
+#      - ./setup_fleet.sh:/usr/local/bin/setup_fleet.sh
+#    depends_on:
+#      kibana:
+#        condition: service_healthy
+#    user: root
+#    entrypoint: ["/bin/sh", "-c", "apk add --no-cache curl openssl && /usr/local/bin/setup_fleet.sh"]
 
   package-registry:
     image: registry-docker.weg.net/package-registry/distribution:lite-${STACK_VERSION}
-    #    image: registry-docker.weg.net/package-registry/distribution:8.14.3
     container_name: package-registry
     ports:
       - "8080:8080"
