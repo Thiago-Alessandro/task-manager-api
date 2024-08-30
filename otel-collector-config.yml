@@ -43,18 +43,17 @@ receivers:
 
 exporters:
   logging:
-    #    loglevel: debug
     verbosity: detailed
 
 
-  elasticsearch:
-    endpoints: [ "https://es01:9200" ]
-    traces_index: "traces-app"
-    logs_index: "logs-app"
-    user: elastic
-    password: changeme
-    tls:
-      insecure_skip_verify: true
+#  elasticsearch:
+#    endpoints: [ "https://es01:9200" ]
+#    traces_index: "traces-app"
+#    logs_index: "logs-app"
+#    user: elastic
+#    password: changeme
+#    tls:
+#      insecure_skip_verify: true
 
   otlp:
     endpoint: "http://fleet-server:8200"
@@ -142,14 +141,14 @@ processors:
 
 service:
   pipelines:
-#    logs:
-#      receivers: [ otlp ]
-#      processors: [ batch, transform ]
-#      exporters: [ logging, elasticsearch]
-#    traces:
-#      receivers: [otlp]
-#      processors: [batch]
-#      exporters: [ logging, elasticsearch]
+    logs:
+      receivers: [ otlp ]
+      processors: [ batch, transform ]
+      exporters: [ logging, otlp]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [ logging, otlp]
     metrics:
       receivers: [otlp]
       processors: [ cumulativetodelta, transform, batch]

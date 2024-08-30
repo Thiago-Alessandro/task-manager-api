@@ -32,10 +32,14 @@ volumes:
     driver: local
   mysqldata:
     driver: local
+#  metricbeatdata01:
+#    driver: local
 
 networks:
   default:
     name: evolve
+    driver: bridge
+#    external: true
 
 services:
   setup:
@@ -147,6 +151,7 @@ services:
     env_file: ./evolve-api.env
     depends_on:
       - kibana
+      - fleet-server
       - mysql
 
 
@@ -161,6 +166,11 @@ services:
       - 3306
     volumes:
       - mysqldata:/var/lib/mysql  # Monta um volume para persistir os dados do MySQL
+      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "/sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro"
+      - "/proc:/hostfs/proc:ro"
+      - "/:/hostfs:ro"
 
 
   loadbalancer:
@@ -214,3 +224,32 @@ services:
       interval: 10s
       timeout: 10s
       retries: 120
+
+
+#  metricbeat01:
+#    container_name: metricbeat01
+#    depends_on:
+#      kibana:
+#        condition: service_healthy
+#    image: registry-docker.weg.net/beats/metricbeat:${STACK_VERSION}
+#    user: root
+#    volumes:
+#      - certs:/usr/share/metricbeat/certs
+#      - metricbeatdata01:/usr/share/metricbeat/data
+#      - "./metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro"
+#      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+#      - "/sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro"
+#      - "/proc:/hostfs/proc:rw"
+#      - "/:/hostfs:rw"
+#    environment:
+#      - ELASTIC_USER=elastic
+#      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+#      - ELASTIC_HOSTS=https://es01:9200
+#      - KIBANA_HOSTS=https://kibana:5601
+#      - CA_CERT=certs/ca/ca.crt
+#      - ES_CERT=certs/es01/es01.crt
+#      - ES_KEY=certs/es01/es01.key
+#      - KB_CERT=certs/kibana/kibana.crt
+#      - KB_KEY=certs/kibana/kibana.key
+#    command:
+#      - --strict.perms=false
