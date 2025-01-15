@@ -11,14 +11,20 @@
     <groupId>net.weg</groupId>
     <artifactId>evolve-api</artifactId>
     <version>0.0.1-SNAPSHOT</version>
+    <packaging>jar</packaging>
+    <!-- <modules>
+        <module>demo</module>
+        <module>demo</module>
+    </modules> -->
     <name>evolve-api</name>
     <description>Evolve's API. Provides services to the task-manager</description>
     <properties>
         <java.version>17</java.version>
+        <spring.version>3.3.0</spring.version>
 <!--        <java.version>21</java.version>-->
     </properties>
 
-    <dependencyManagement>
+    <!-- <dependencyManagement>
         <dependencies>
             <dependency>
                 <groupId>io.opentelemetry</groupId>
@@ -35,40 +41,51 @@
                 <scope>import</scope>
             </dependency>
         </dependencies>
-    </dependencyManagement>
+    </dependencyManagement> -->
 
 
 
 
     <dependencies>
 
-        <!--prometheus only used to expose route on /actuator-->
         <dependency>
+			<groupId>net.weg.orchestra</groupId>
+			<artifactId>observation-log-core</artifactId>
+			<version>1.0.0</version>
+		</dependency>
+        <dependency>
+			<groupId>net.weg.orchestra.spring</groupId>
+			<artifactId>observation-spring-boot-starter</artifactId>
+			<version>3.3.0-8</version>
+		</dependency>
+
+        <!-- prometheus only used to expose route on /actuator-->
+        <!-- <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
-        </dependency>
-        <dependency>
+        </dependency> -->
+        <!-- <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-otlp</artifactId>
-        </dependency>
-        <dependency>
+        </dependency> -->
+        <!-- <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-exporter-otlp</artifactId>
-        </dependency>
+        </dependency> -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>org.modelmapper</groupId>
             <artifactId>modelmapper</artifactId>
             <version>2.4.4</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
         </dependency>
 
 <!--        <dependency>-->
@@ -84,7 +101,7 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
-            <version>3.1.5</version>
+            <!-- <version>3.1.5</version> -->
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -122,6 +139,16 @@
         </dependency>
     </dependencies>
 
+	<distributionManagement>
+		<snapshotRepository>
+			<id>wegnexus</id>
+			<url>https://nexus3.weg.net/repository/maven-snapshots/</url>
+		</snapshotRepository>
+		<repository>
+			<id>wegnexus</id>
+			<url>https://nexus3.weg.net/repository/maven-releases/</url>
+		</repository>
+	</distributionManagement>
  
     <build>
         <plugins>

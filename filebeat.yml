@@ -1,0 +1,46 @@
+filebeat.inputs:
+  - type: filestream
+    id: default-filestream
+    paths:
+      - ingest_data/*.log
+      - ingest_data/*.json
+
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      hints.enabled: true
+
+processors:
+  - dissect: # a constraint é a ultima coisa mas o simbolo que precede varia entre <-> e :
+      tokenizer: "Event:%{eventType} -> %{cause} <-> %{constraint}"
+      field: "message"
+      target_prefix: "payload"
+      ignore_failure: true
+  - dissect: # a constraint é a ultima coisa mas o simbolo que precede varia entre <-> e :
+      tokenizer: "Event:%{eventType} -> %{cause} : %{constraint}"
+      # tokenizer: "Event:%{eventType} -> %{changedVariable} : %{description} => %{eventCause}"
+      field: "message"
+      target_prefix: "payload"
+      ignore_failure: true
+  - dissect: # nome da variavel === valor da variavel
+      tokenizer: "%{variable.name} === %{variable.value}"
+      field: "payload.cause"
+      target_prefix: "payload"
+  - dissect: # mesmo que a cause (o que esta errado pq effectiveCause nao necessariamente é igual a cause)
+      tokenizer: "%{effectiveCause}"
+      field: "payload.cause"
+      target_prefix: "payload"
+  - add_docker_metadata: ~
+
+setup.kibana:
+  host: "http://localhost:5601"
+  username: "elastic"
+  password: "changeme"
+
+output.elasticsearch:
+  hosts: ["https://es01:9200"]
+  username: "elastic"
+  password: "changeme"
+  ssl:
+    enabled: true
+    certificate_authorities: ${CA_CERT}

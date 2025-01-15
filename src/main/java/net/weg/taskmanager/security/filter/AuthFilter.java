@@ -1,15 +1,9 @@
 package net.weg.taskmanager.security.filter;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import lombok.AllArgsConstructor;
-//import lombok.NoArgsConstructor;
-import net.weg.taskmanager.security.service.AuthService;
-import net.weg.taskmanager.security.util.Cookieutil;
-import net.weg.taskmanager.security.util.JwtUtil;
+import java.io.IOException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -19,7 +13,15 @@ import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import java.io.IOException;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.AllArgsConstructor;
+import net.weg.taskmanager.security.service.AuthService;
+import net.weg.taskmanager.security.util.Cookieutil;
+import net.weg.taskmanager.security.util.JwtUtil;
 
 @Component
 @AllArgsConstructor
@@ -29,6 +31,7 @@ public class AuthFilter extends OncePerRequestFilter {
     private final SecurityContextRepository securityContextRepository;
     private final Cookieutil coookieUtil = new Cookieutil();
     private final JwtUtil jwtUtil = new JwtUtil();
+    private final static Logger logger = LoggerFactory.getLogger(AuthFilter.class);
 
     //executara em cada requisicao da API
     @Override
@@ -36,6 +39,11 @@ public class AuthFilter extends OncePerRequestFilter {
 //        System.out.println("request");
         System.out.println(request.getMethod());
         System.out.println(request.getRequestURI());
+        logger.trace("trace");
+        logger.debug("debug");
+        logger.info("info");
+        logger.warn("warn");
+        logger.error("error");
 //        System.out.println(!publicRoute(request));
         if (!publicRoute(request)) {
 

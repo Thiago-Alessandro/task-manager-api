@@ -32,6 +32,8 @@ volumes:
     driver: local
   mysqldata:
     driver: local
+  filebeatdata01:
+    driver: local
 #  metricbeatdata01:
 #    driver: local
 
@@ -69,6 +71,7 @@ services:
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
       - esdata01:/usr/share/elasticsearch/data
+      - /c/Users/tbatista/Downloads/GeoLite2-City_20241022:/usr/share/elasticsearch/config/ingest-geoip
     ports:
       - ${ES_PORT}:9200
     env_file: ./elasticsearch.env
@@ -120,6 +123,30 @@ services:
       timeout: 10s
       retries: 120
 
+  filebeat01:
+    container_name: filebeat01
+    depends_on:
+      es01:
+        condition: service_healthy
+    image: registry-docker.weg.net/beats/filebeat:${STACK_VERSION}
+    user: root
+    volumes:
+      - certs:/usr/share/filebeat/certs
+      - filebeatdata01:/usr/share/filebeat/data
+      - "C:/Users/tbatista/my-projects/backend/EVOLVE-API/ingest_data/:/usr/share/filebeat/ingest_data/"
+      - "C:/Users/tbatista/my-projects/backend/EVOLVE-API/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro"
+      - "/var/lib/docker/containers:/var/lib/docker/containers:ro,rslave"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    environment:
+      - ELASTIC_USER=elastic
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - ELASTIC_HOSTS=https://es01:9200
+      - KIBANA_HOSTS=https://kibana:5601
+      # - LOGSTASH_HOSTS=http://logstash01:9600
+      - CA_CERT=certs/ca/ca.crt
+    command:
+      - --strict.perms=false
+
 
   otel-collector:
     image: registry-docker.weg.net/otel/opentelemetry-collector-contrib:latest
@@ -129,6 +156,9 @@ services:
     env_file: ./otel-collector.env
     mem_limit: ${DF_MEM_LIMIT}
     command: ["--config", "/otel-local-config.yaml"]
+    ports:
+    - 4318:4318
+    - 4317:4317
 
   otel-collector2:
     image: registry-docker.weg.net/otel/opentelemetry-collector-contrib:latest
@@ -141,7 +171,7 @@ services:
 
 
   evolve-api:
-    image: evolve-api:latest
+    image: evolve-api:latest  
     container_name: evolve-api
     build:
       context: .
@@ -149,6 +179,19 @@ services:
     expose:
       - 8087
     env_file: ./evolve-api.env
+    environment:
+      - otel.instrumentation.logback-appender.experimental.capture-mdc-attributes=*
+      - MANAGEMENT_METRICS_DISTRIBUTION_PERCENTILES-HISTOGRAM_HTTP=true
+      - MANAGEMENT_METRICS_DISTRIBUTION_PERCENTILES-HISTOGRAM_SPRING=true
+      
+      - ORCHESTRA_OBSERVATION_ENABLED=true 
+      - MANAGEMENT_OTLP_TRACING_ENDPOINT=http://localhost:4318/v1/traces
+      - MANAGEMENT_TRACING_SAMPLING_PROBABILITY=1.0
+      - MANAGEMENT_OTLP_METRICS_EXPORT_URL=http://localhost:4318/v1/metrics
+      - SPRING_APPLICATION_NAME=evolve-api
+      - ORCHESTRA_OBSERVATION_LOG_MUTABLELEVELHEADER_ENABLED=true 
+      - MANAGEMENT_OBSERVATIONS_ENABLE_SPRING_SECURITY=false 
+      
     depends_on:
       - kibana
       - fleet-server
@@ -166,11 +209,11 @@ services:
       - 3306
     volumes:
       - mysqldata:/var/lib/mysql  # Monta um volume para persistir os dados do MySQL
-      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "/sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro"
-      - "/proc:/hostfs/proc:ro"
-      - "/:/hostfs:ro"
+#      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+#      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+#      - "/sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro"
+#      - "/proc:/hostfs/proc:ro"
+#      - "/:/hostfs:ro"
 
 
   loadbalancer:
@@ -178,6 +221,7 @@ services:
     container_name: loadbalancer
     ports:
       - "8087:8087"
+      - "4318:4318"
     depends_on:
       - evolve-api
       - otel-collector
@@ -202,11 +246,33 @@ services:
       - ./artifacts/kibana/saved_objects:/usr/local/bin/saved_objects
       - certs:/certs
       - fleetserverdata:/usr/share/elastic-agent
-      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "/sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro"
-      - "/proc:/hostfs/proc:ro"
-      - "/:/hostfs:ro"
+      - type: bind
+        source: /var/lib/docker/containers
+        target: /var/lib/docker/containers
+        read_only: true
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
+      - type: bind
+        source: /sys/fs/cgroup
+        target: /hostfs/sys/fs/cgroup
+        read_only: true
+      - type: bind
+        source: /proc
+        target: /hostfs/proc
+        read_only: true
+      - type: bind
+        source: /
+        target: /hostfs
+        read_only: true
+        bind:
+          propagation: rslave
+#      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+#      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+#      - "/sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro"
+#      - "/proc:/hostfs/proc:ro"
+#      - "/:/hostfs:ro"
     entrypoint: ["/bin/sh", "-c", "/usr/local/bin/setup_fleet.sh && /usr/local/bin/kibana_imports.sh && /usr/local/bin/docker-entrypoint"]
     ports:
       - ${FLEET_PORT}:8220

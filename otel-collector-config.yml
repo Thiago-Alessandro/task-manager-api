@@ -5,6 +5,10 @@ receivers:
         endpoint: "${OTLP_GRPC_ENDPOINT}"
       http:
         endpoint: "${OTLP_HTTP_ENDPOINT}"
+        cors:
+          allowed_origins:
+            - http://*
+            - https://*
 
 #  prometheus:
 #    config:
